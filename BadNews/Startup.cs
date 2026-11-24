@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using BadNews.Elevation;
+﻿using BadNews.Elevation;
 using BadNews.Hubs;
 using BadNews.ModelBuilders.News;
 using BadNews.Repositories.Comments;
