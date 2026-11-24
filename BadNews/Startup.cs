@@ -1,5 +1,7 @@
 ﻿using BadNews.Elevation;
+using BadNews.Hubs;
 using BadNews.ModelBuilders.News;
+using BadNews.Repositories.Comments;
 using BadNews.Repositories.News;
 using BadNews.Repositories.Weather;
 using BadNews.Validation;
@@ -39,6 +41,8 @@ namespace BadNews
             {
                 options.EnableForHttps = true;
             });
+            services.AddSingleton<CommentsRepository>();
+            services.AddSignalR();
             services.AddMemoryCache();
             var mvcBuilder = services.AddControllersWithViews();
             if (env.IsDevelopment())
@@ -80,6 +84,8 @@ namespace BadNews
                     action = "StatusCode"
                 });
                 endpoints.MapControllerRoute("default", "{controller=News}/{action=Index}/{id?}");
+                endpoints.MapControllers();
+                endpoints.MapHub<CommentsHub>("/commentsHub");
             });
             app.MapWhen(context => context.Request.IsElevated(), branchApp =>
             {
