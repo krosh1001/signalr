@@ -1,26 +1,102 @@
+
 @using System
 @using System.Collections.Generic
+@using System.Linq
+@using System.Threading.Tasks
 @using BadNews.Repositories.Comments
+@using Microsoft.AspNetCore.SignalR.Client
 @inject CommentsRepository commentsRepository
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
 
 <div>
-    @foreach (var comment in comments)
-    {
-        <li>@RenderComment(comment)</li>
-    }
+    <h5>Комментарии</h5>
+
+    <ul>
+        @foreach (var comment in comments)
+        {
+            <li>@RenderComment(comment)</li>
+        }
+    </ul>
+
+    <div>
+        <label>
+            Пользователь
+            <input @bind="userInput" />
+        </label>
+    </div>
+
+    <div>
+        <label>
+            Комментарий
+            <input @bind="messageInput" />
+        </label>
+    </div>
+
+    <div>
+        <button @onclick="SendComment"
+                disabled="@(hubConnection?.State != HubConnectionState.Connected)">
+            Отправить
+        </button>
+    </div>
 </div>
 
 @code {
     private IReadOnlyCollection<Comment> comments = new List<Comment>();
 
+    private HubConnection? hubConnection;
+
+    private string userInput = "";
+    private string messageInput = "";
+
     [Parameter]
     public Guid ArticleId { get; set; }
 
-    protected override void OnParametersSet()
+    protected override async Task OnInitializedAsync()
     {
-        comments = commentsRepository.GetComments(ArticleId);
+        comments = commentsRepository.GetComments(ArticleId).ToList();
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/commentsHub"))
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveComment", (user, message) =>
+        {
+            comments = comments.Append(new Comment(user, message)).ToList();
+            return InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendComment()
+    {
+        if (hubConnection?.State != HubConnectionState.Connected)
+            return;
+
+        if (string.IsNullOrWhiteSpace(userInput) ||
+            string.IsNullOrWhiteSpace(messageInput))
+            return;
+
+        await hubConnection.SendAsync(
+            "SendComment",
+            userInput,
+            messageInput
+        );
+
+        messageInput = "";
     }
 
     private string RenderComment(Comment comment) =>
         $"{comment.User} говорит: {comment.Value}";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
 }
